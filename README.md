@@ -1,54 +1,58 @@
 # RDP Watermark
 
-當使用者透過 RDP 連入主機時，桌面會浮現一層**透明、滑鼠穿透、置頂**的浮水印，顯示：
+A Windows desktop overlay that displays a transparent, click-through, always-on-top
+watermark whenever a user connects to the machine via RDP. Each watermark shows:
 
-- 使用者 + 電腦：`DOMAIN\user @ HOSTNAME`
-- RDP 來源：`ClientName (192.168.x.x)`
-- 動態時間戳記：每 30 秒刷新
-- 自訂標記文字：可在 `settings.json` 修改
+- **User + host**: `DOMAIN\user @ HOSTNAME`
+- **RDP client**: `ClientName (192.168.x.x)`
+- **Live timestamp**: refreshes every 30 seconds
+- **Custom label**: configurable via `settings.json`
 
-本地（主控台）登入時**不顯示**。
+The watermark is **hidden when logged on locally at the console** — it appears only
+inside RDP sessions, so internal users at the physical machine are unaffected.
 
-支援 Windows Server **2019 / 2022**（x64）、桌面版 Windows 10 / 11。
+Supports **Windows Server 2019 / 2022** (x64), and desktop Windows 10 / 11.
 
 ---
 
-## 安裝
+## Install
 
-雙擊 `dist\Watermark.msi` 安裝（需要系統管理員權限）。
+Double-click `dist/Watermark.msi` (administrator rights required).
 
-安裝後：
+After install:
 
-- 程式安裝到 `C:\Program Files\Watermark\`
-- 寫入 `HKLM\Software\Microsoft\Windows\CurrentVersion\Run\Watermark`
-- **下一次登入時**自動啟動。若想立即啟動，直接執行：
+- Binaries land in `C:\Program Files\Watermark\`
+- `HKLM\Software\Microsoft\Windows\CurrentVersion\Run\Watermark` is written so
+  every user logon auto-starts the watermark
+- A `LaunchWatermark` custom action also fires the executable at the **end of
+  install**, so the watermark appears immediately without requiring a logoff
 
-  ```powershell
-  Start-Process "C:\Program Files\Watermark\Watermark.exe"
-  ```
-
-### 靜默安裝 / 解除安裝
+### Silent install / uninstall
 
 ```powershell
 msiexec /i dist\Watermark.msi /qn
 msiexec /x dist\Watermark.msi /qn
 ```
 
+Uninstall stops the running `Watermark.exe`, removes the files, and clears the
+Run key.
+
 ---
 
-## 自訂浮水印
+## Customise the watermark
 
-`C:\Program Files\Watermark\settings.json` — 預設值：
+`C:\Program Files\Watermark\settings.json` (defaults shown):
 
 ```json
 {
   "watermark": {
-    "customText": "機密文件 - 禁止外流",
+    "customText": "CONFIDENTIAL - DO NOT DISTRIBUTE",
     "fontFamily": "Microsoft JhengHei",
-    "fontSize": 14,
+    "fontSize": 16,
     "color": "#FFFFFF",
-    "opacity": 0.18,
+    "opacity": 0.65,
     "rotationAngle": -30,
+    "watermarksPerScreen": 5,
     "tileWidth": 360,
     "tileHeight": 200,
     "timestampFormat": "yyyy-MM-dd HH:mm:ss",
@@ -66,60 +70,101 @@ msiexec /x dist\Watermark.msi /qn
 }
 ```
 
-也可放到 `%LOCALAPPDATA%\Watermark\settings.json` 做使用者層級覆寫（讀取順序：LocalAppData → ProgramData → 安裝目錄）。
+`watermarksPerScreen` controls density: the program derives tile size from screen
+dimensions so the chosen number of watermarks remains stable regardless of
+resolution or RDP window size. Set it to `0` to fall back to explicit
+`tileWidth` / `tileHeight`.
 
-修改後重新啟動 `Watermark.exe` 生效。
+A per-user override file is also honoured (read order, first wins):
+
+1. `%LOCALAPPDATA%\Watermark\settings.json`
+2. `%ProgramData%\Watermark\settings.json`
+3. `C:\Program Files\Watermark\settings.json`
+
+Restart `Watermark.exe` after editing to apply.
 
 ---
 
-## 從原始碼建置
+## Build from source
 
 ```powershell
-# 需要 .NET 8 SDK
+# Requires .NET 8 SDK
 dotnet tool install --global wix --version 5.0.2
 wix extension add -g WixToolset.Util.wixext/5.0.2
 
 .\build.ps1
 ```
 
-產出 `dist\Watermark.msi`。
+The script publishes a self-contained single-file executable and packages it
+into `dist\Watermark.msi`.
 
 ---
 
-## 專案結構
+## Project layout
 
 ```
 Watermark/
-├── DESIGN.md                ← 設計文件
-├── README.md                ← 本檔
-├── build.ps1                ← 一鍵建置腳本
-├── src/Watermark/           ← C# WPF 原始碼
-│   ├── App.xaml(.cs)        ← 進入點、單一實例、事件接線
+├── DESIGN.md                ← design document
+├── README.md                ← this file
+├── build.ps1                ← one-shot build script
+├── src/Watermark/           ← C# WPF source
+│   ├── App.xaml(.cs)        ← entry point, single-instance, event wiring
 │   ├── Windows/
-│   │   └── WatermarkWindow  ← 透明穿透視窗 + 斜向平鋪
+│   │   └── WatermarkWindow  ← transparent overlay + diagonal tiling
 │   ├── Services/
-│   │   ├── RdpSessionDetector       ← WTS session 通知
-│   │   ├── SessionInfoProvider      ← User / Host / Client IP
-│   │   ├── WatermarkWindowManager   ← 多螢幕管理
-│   │   └── WatchdogService          ← 自我復原
+│   │   ├── RdpSessionDetector       ← WTS session notifications
+│   │   ├── SessionInfoProvider      ← user / host / client IP
+│   │   ├── WatermarkWindowManager   ← multi-monitor management
+│   │   └── WatchdogService          ← self-recovery
 │   ├── Native/NativeMethods.cs      ← P/Invoke
-│   ├── Config/AppSettings.cs        ← 設定模型
-│   ├── settings.json                ← 預設設定
-│   ├── GlobalUsings.cs              ← WPF/WinForms 命名空間別名
+│   ├── Config/AppSettings.cs        ← settings model
+│   ├── settings.json                ← default settings
+│   ├── GlobalUsings.cs              ← WPF/WinForms namespace aliases
 │   └── app.manifest
-├── installer/
-│   └── Package.wxs          ← WiX v5 MSI 定義
-├── publish/                 ← 發佈輸出（self-contained exe）
-└── dist/                    ← MSI 輸出
+└── installer/
+    └── Package.wxs          ← WiX v5 MSI definition
 ```
+
+`bin/`, `obj/`, `publish/`, and `dist/` are build outputs (ignored by git).
+Generate `dist/Watermark.msi` with `.\build.ps1`.
 
 ---
 
-## 已知限制
+## How it works
 
-詳見 [`DESIGN.md`](DESIGN.md) §9。重點：
+1. **Detection** — `GetSystemMetrics(SM_REMOTESESSION)` checks at startup;
+   `WTSRegisterSessionNotification` + `WM_WTSSESSION_CHANGE` track connect /
+   disconnect / lock / unlock events in real time.
 
-- 系統管理員仍可用 Task Manager 結束程序（watchdog 會 2 秒內復原）
-- 全螢幕獨佔（DirectX exclusive）覆蓋不到
-- UAC 安全桌面（Secure Desktop）不會被覆蓋
-- 程式日誌：`%LOCALAPPDATA%\Watermark\watermark.log`
+2. **Overlay** — One borderless WPF `Window` per monitor with
+   `WS_EX_TRANSPARENT | WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST`
+   so it never steals input, never appears in the taskbar / Alt-Tab, and stays
+   above other windows.
+
+3. **Resilience** — A `WatermarkWindowManager` listens to
+   `SystemEvents.DisplaySettingsChanged` and a 2-second watchdog ticks so that
+   any RDP window resize / monitor change / external close is repaired within
+   one tick. Bounds are re-derived from `Screen.AllScreens` on every health
+   check so the watermark layout stays consistent at any resolution.
+
+4. **Multi-session safety** — The single-instance mutex uses the `Local\`
+   prefix (per-session), so each RDP session runs its own `Watermark.exe`
+   independently.
+
+---
+
+## Known limitations
+
+See [`DESIGN.md`](DESIGN.md) §9 for details. Highlights:
+
+- Administrators can still kill `Watermark.exe` via Task Manager — the
+  watchdog re-creates the windows on the next tick (within 2 seconds)
+- Exclusive-mode fullscreen (DirectX exclusive) cannot be overlaid
+- The UAC Secure Desktop cannot be overlaid (by Windows design)
+- Application log: `%LOCALAPPDATA%\Watermark\watermark.log`
+
+---
+
+## License
+
+TBD.
