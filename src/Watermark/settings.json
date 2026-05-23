@@ -1,0 +1,24 @@
+{
+  "watermark": {
+    "customText": "機密文件 - 禁止外流",
+    "fontFamily": "Microsoft JhengHei",
+    "fontSize": 16,
+    "color": "#FFFFFF",
+    "opacity": 0.65,
+    "rotationAngle": -30,
+    "watermarksPerScreen": 5,
+    "tileWidth": 360,
+    "tileHeight": 200,
+    "timestampFormat": "yyyy-MM-dd HH:mm:ss",
+    "timestampRefreshSeconds": 30,
+    "showUserAndHost": true,
+    "showClientAddress": true,
+    "showTimestamp": true,
+    "showCustomText": true
+  },
+  "behavior": {
+    "showOnRdpOnly": true,
+    "hideOnLock": false,
+    "watchdogIntervalMs": 2000
+  }
+}

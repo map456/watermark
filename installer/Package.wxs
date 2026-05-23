@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+
+  <Package Name="RDP Watermark"
+           Manufacturer="Watermark"
+           Version="1.0.0.0"
+           UpgradeCode="4AE88D5C-13D4-49C8-98DF-38ECD60EC49D"
+           Scope="perMachine"
+           InstallerVersion="500"
+           Compressed="yes">
+
+    <SummaryInformation Description="RDP Watermark — session overlay" />
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Close running watermark.exe before install/uninstall -->
+    <util:CloseApplication Id="CloseWatermark"
+                           Target="Watermark.exe"
+                           CloseMessage="yes"
+                           TerminateProcess="5"
+                           RebootPrompt="no"
+                           ElevatedCloseMessage="yes" />
+
+    <Feature Id="Main" Title="RDP Watermark" Level="1">
+      <ComponentGroupRef Id="AppComponents" />
+    </Feature>
+
+    <!--
+      Launch Watermark.exe at the end of install so the watermark appears immediately
+      without requiring the user to log off/on. Impersonate="yes" runs it as the
+      installing user (so the UI shows in their session), Return="asyncNoWait"
+      lets MSI finalize without waiting for the long-running process.
+    -->
+    <CustomAction Id="LaunchWatermark"
+                  FileRef="WatermarkExe"
+                  ExeCommand=""
+                  Execute="immediate"
+                  Impersonate="yes"
+                  Return="asyncNoWait" />
+
+    <InstallExecuteSequence>
+      <Custom Action="LaunchWatermark" After="InstallFinalize" Condition="NOT Installed OR REINSTALL" />
+    </InstallExecuteSequence>
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Watermark" />
+    </StandardDirectory>
+
+    <ComponentGroup Id="AppComponents" Directory="INSTALLFOLDER">
+      <Component Id="WatermarkExe" Bitness="always64">
+        <File Id="WatermarkExe"
+              Name="Watermark.exe"
+              Source="$(var.PublishDir)\Watermark.exe"
+              KeyPath="yes" />
+      </Component>
+
+      <Component Id="SettingsJson" Bitness="always64">
+        <File Id="SettingsJson"
+              Name="settings.json"
+              Source="$(var.PublishDir)\settings.json"
+              KeyPath="yes" />
+      </Component>
+
+      <!-- Auto-start at every user logon (machine-wide) -->
+      <Component Id="AutoStart" Guid="EE79838D-0469-4897-B076-9A3D37EF97AF" Bitness="always64">
+        <RegistryValue Root="HKLM"
+                       Key="Software\Microsoft\Windows\CurrentVersion\Run"
+                       Name="Watermark"
+                       Type="string"
+                       Value="&quot;[INSTALLFOLDER]Watermark.exe&quot;"
+                       KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+  </Package>
+</Wix>

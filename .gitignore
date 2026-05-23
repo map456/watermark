@@ -1,0 +1,26 @@
+# Build artifacts
+**/bin/
+**/obj/
+
+# Publish output (regenerate via build.ps1)
+publish/
+
+# MSI installer output (distribute via GitHub Releases instead)
+dist/
+
+# WiX intermediate
+*.wixpdb
+*.wixobj
+
+# IDE
+.vs/
+*.user
+*.suo
+
+# Test artifacts
+screenshot.png
+*.log
+
+# OS
+Thumbs.db
+desktop.ini
